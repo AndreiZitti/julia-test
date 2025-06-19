@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gender Classification Tool</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>👥 Gender Classification Tool</h1>
+        <p>Upload an Excel file and classify names by gender</p>
+      </header>
+
+      <main>
+        <!-- Step 1: File Upload -->
+        <div class="step" id="step1">
+          <h2>📁 Step 1: Upload Excel File</h2>
+          <div class="upload-area" id="uploadArea">
+            <div class="upload-content">
+              <div class="upload-icon">📄</div>
+              <p>
+                Drag and drop your Excel file here or
+                <span class="upload-link">browse</span>
+              </p>
+              <input type="file" id="fileInput" accept=".xlsx,.xls" hidden />
+              <small>Supported formats: .xlsx, .xls (Max 16MB)</small>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Column Selection -->
+        <div class="step" id="step2" style="display: none">
+          <h2>📋 Step 2: Select Name Column</h2>
+          <div class="column-selection">
+            <div class="input-group">
+              <label for="columnSelect">Available Columns:</label>
+              <select id="columnSelect">
+                <option value="">-- Select a column --</option>
+              </select>
+            </div>
+            <div class="or-divider">OR</div>
+            <div class="input-group">
+              <label for="columnInput">Type Column Name:</label>
+              <input
+                type="text"
+                id="columnInput"
+                placeholder="Enter column name manually"
+              />
+            </div>
+          </div>
+
+          <div
+            class="preview-section"
+            id="previewSection"
+            style="display: none"
+          >
+            <h3>📊 Column Preview</h3>
+            <div class="preview-info">
+              <span id="selectedColumnName"></span> -
+              <span id="totalRows"></span> rows
+            </div>
+            <div class="preview-data" id="previewData"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Processing Options -->
+        <div class="step" id="step3" style="display: none">
+          <h2>⚡ Step 3: Choose Classification Method</h2>
+
+          <!-- Classification Method Selection -->
+          <div class="classification-options">
+            <div class="method-option">
+              <input
+                type="radio"
+                id="useRuleBased"
+                name="classificationMethod"
+                value="rule-based"
+                checked
+              />
+              <label for="useRuleBased" class="method-label">
+                <div class="method-header">
+                  <span class="method-icon">📚</span>
+                  <span class="method-title">Rule-Based Classification</span>
+                  <span class="method-badge free">Free</span>
+                </div>
+                <div class="method-description">
+                  Uses built-in name database and linguistic patterns. Good
+                  accuracy for common names.
+                </div>
+              </label>
+            </div>
+
+            <div class="method-option">
+              <input
+                type="radio"
+                id="useAI"
+                name="classificationMethod"
+                value="ai"
+              />
+              <label for="useAI" class="method-label">
+                <div class="method-header">
+                  <span class="method-icon">🤖</span>
+                  <span class="method-title">AI-Powered Classification</span>
+                  <span class="method-badge premium">Premium</span>
+                </div>
+                <div class="method-description">
+                  Uses OpenAI GPT-3.5 for higher accuracy, especially with
+                  uncommon or international names.
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- API Key Input (shown when AI is selected) -->
+          <div class="api-key-section" id="apiKeySection" style="display: none">
+            <div class="input-group">
+              <label for="apiKeyInput">
+                <span class="required">*</span> OpenAI API Key:
+                <small class="help-text"
+                  >Your API key is used only for this session and never
+                  stored</small
+                >
+              </label>
+              <div class="api-key-input-wrapper">
+                <input
+                  type="text"
+                  id="apiKeyInput"
+                  placeholder="sk-..."
+                  autocomplete="off"
+                />
+                <button
+                  type="button"
+                  class="toggle-visibility"
+                  id="toggleApiKey"
+                >
+                  <span id="toggleIcon">👁️</span>
+                </button>
+              </div>
+              <div class="api-key-help">
+                <p>📝 <strong>How to get your API key:</strong></p>
+                <ol>
+                  <li>
+                    Go to
+                    <a
+                      href="https://platform.openai.com/api-keys"
+                      target="_blank"
+                      >OpenAI API Keys</a
+                    >
+                  </li>
+                  <li>Sign in or create an account</li>
+                  <li>Click "Create new secret key"</li>
+                  <li>Copy and paste it above</li>
+                </ol>
+                <p>
+                  <small
+                    >💰 Cost: ~$0.001-0.002 per name (very affordable)</small
+                  >
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Process Button -->
+          <div class="process-section">
+            <button id="processBtn" class="btn btn-primary">
+              <span id="processBtnText">🤖 Classify Names by Gender</span>
+            </button>
+            <div class="loading" id="loading" style="display: none">
+              <div class="spinner"></div>
+              <p id="loadingText">Processing names... Please wait</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4: Results -->
+        <div class="step" id="step4" style="display: none">
+          <h2>✅ Results</h2>
+          <div class="results-section">
+            <div
+              class="classification-method-used"
+              id="classificationMethodUsed"
+            ></div>
+            <div class="results-summary" id="resultsSummary"></div>
+            <div class="download-section">
+              <button id="downloadBtn" class="btn btn-success">
+                📥 Download Processed File
+              </button>
+            </div>
+            <button id="resetBtn" class="btn btn-secondary">
+              🔄 Process Another File
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <!-- Error/Info Messages -->
+      <div class="message" id="message" style="display: none"></div>
+    </div>
+
+    <footer>
+      <p>Gender Classification: 1 = Male, 2 = Female, ? = Uncertain</p>
+    </footer>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
