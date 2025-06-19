@@ -116,31 +116,37 @@ def classify_gender_with_ai(names_batch, api_key):
         api_key (str): OpenAI API key
         
     Returns:
-        dict: Dictionary mapping name to classification ('1', '2', or '?')
+        dict: Dictionary with 'success', 'results', 'model_used', and 'error' keys
     """
     if not api_key or not names_batch:
-        return {}
+        return {
+            'success': False,
+            'error': 'No API key or names provided',
+            'results': {}
+        }
     
-    try:
-        client = OpenAI(api_key=api_key)
-        
-        # Clean the names first
-        cleaned_names = []
-        name_mapping = {}
-        for name in names_batch:
-            cleaned = clean_name(name) if name else ""
-            if cleaned:
-                cleaned_names.append(cleaned)
-                name_mapping[cleaned] = name
-        
-        if not cleaned_names:
-            return {name: '?' for name in names_batch}
-        
-        # Create prompt for batch processing (up to 50 names at a time for efficiency)
-        batch_size = min(50, len(cleaned_names))
-        current_batch = cleaned_names[:batch_size]
-        
-        prompt = f"""Classify the following names by gender. Return only a JSON object where each name maps to:
+    # Clean the names first
+    cleaned_names = []
+    name_mapping = {}
+    for name in names_batch:
+        cleaned = clean_name(name) if name else ""
+        if cleaned:
+            cleaned_names.append(cleaned)
+            name_mapping[cleaned] = name
+    
+    if not cleaned_names:
+        return {
+            'success': True,
+            'results': {name: '?' for name in names_batch},
+            'model_used': 'None (empty names)',
+            'error': None
+        }
+    
+    # Create prompt for batch processing
+    batch_size = min(50, len(cleaned_names))
+    current_batch = cleaned_names[:batch_size]
+    
+    prompt = f"""Classify the following names by gender. Return only a JSON object where each name maps to:
 - "1" for male names
 - "2" for female names  
 - "?" for ambiguous, uncertain, or unknown names
@@ -149,59 +155,113 @@ Names to classify: {current_batch}
 
 Respond with only the JSON object, no additional text:"""
 
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "system", 
-                    "content": "You are a precise name classification assistant. Return only valid JSON with no additional commentary."
-                },
-                {
-                    "role": "user", 
-                    "content": prompt
-                }
-            ],
-            temperature=0.1,
-            max_tokens=1000
-        )
-        
-        # Parse the response
-        response_text = response.choices[0].message.content.strip()
-        
-        # Try to extract JSON from response
+    # Try models in order of preference
+    models_to_try = [
+        ("gpt-3.5-turbo", "GPT-3.5 Turbo"),
+        ("gpt-4o-mini", "GPT-4o Mini"),
+        ("gpt-4o", "GPT-4o"),
+        ("gpt-4", "GPT-4")
+    ]
+    
+    print(f"🤖 Initializing OpenAI client with API key: {api_key[:12]}...")
+    
+    for model_id, model_name in models_to_try:
         try:
-            # Remove any markdown formatting
-            if '```json' in response_text:
-                response_text = response_text.split('```json')[1].split('```')[0]
-            elif '```' in response_text:
-                response_text = response_text.split('```')[1].split('```')[0]
+            client = OpenAI(api_key=api_key)
             
-            ai_results = json.loads(response_text)
+            print(f"🔄 Trying model: {model_name}")
             
-            # Map back to original names and validate results
-            final_results = {}
-            for name in names_batch:
-                cleaned = clean_name(name) if name else ""
-                if cleaned in ai_results:
-                    result = ai_results[cleaned]
-                    # Validate result
-                    if result in ['1', '2', '?']:
-                        final_results[name] = result
+            response = client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {
+                        "role": "system", 
+                        "content": "You are a precise name classification assistant. Return only valid JSON with no additional commentary."
+                    },
+                    {
+                        "role": "user", 
+                        "content": prompt
+                    }
+                ],
+                temperature=0.1,
+                max_tokens=1000
+            )
+            
+            # Parse the response
+            response_text = response.choices[0].message.content.strip()
+            
+            # Try to extract JSON from response
+            try:
+                # Remove any markdown formatting
+                if '```json' in response_text:
+                    response_text = response_text.split('```json')[1].split('```')[0]
+                elif '```' in response_text:
+                    response_text = response_text.split('```')[1].split('```')[0]
+                
+                ai_results = json.loads(response_text)
+                
+                # Map back to original names and validate results
+                final_results = {}
+                for name in names_batch:
+                    cleaned = clean_name(name) if name else ""
+                    if cleaned in ai_results:
+                        result = ai_results[cleaned]
+                        # Validate result
+                        if result in ['1', '2', '?']:
+                            final_results[name] = result
+                        else:
+                            final_results[name] = '?'
                     else:
                         final_results[name] = '?'
-                else:
-                    final_results[name] = '?'
+                
+                print(f"✅ Success with {model_name}")
+                return {
+                    'success': True,
+                    'results': final_results,
+                    'model_used': model_name,
+                    'error': None
+                }
+                
+            except json.JSONDecodeError as json_error:
+                print(f"❌ JSON parsing failed for {model_name}: {json_error}")
+                continue  # Try next model
+        
+        except Exception as e:
+            error_str = str(e)
+            print(f"❌ Model {model_name} failed: {error_str}")
             
-            return final_results
-            
-        except json.JSONDecodeError:
-            # Fallback to rule-based for this batch
-            return {name: classify_gender(name) for name in names_batch}
+            # Check for specific errors that mean we should stop trying
+            if "Incorrect API key" in error_str:
+                return {
+                    'success': False,
+                    'error': 'Invalid API key. Please check your OpenAI API key.',
+                    'results': {}
+                }
+            elif "billing" in error_str.lower() or "quota" in error_str.lower():
+                return {
+                    'success': False,
+                    'error': 'Insufficient OpenAI credits. Please add credits to your account.',
+                    'results': {}
+                }
+            elif "rate limit" in error_str.lower():
+                return {
+                    'success': False,
+                    'error': 'Rate limit exceeded. Please wait a moment and try again.',
+                    'results': {}
+                }
+            # For model not found errors, continue to try next model
+            elif "model" in error_str.lower() and "not found" in error_str.lower():
+                continue
+            else:
+                # For other errors, continue trying other models
+                continue
     
-    except Exception as e:
-        print(f"AI classification error: {e}")
-        # Fallback to rule-based classification
-        return {name: classify_gender(name) for name in names_batch}
+    # If we get here, all models failed
+    return {
+        'success': False,
+        'error': 'All OpenAI models failed. Your account may not have access to any compatible models.',
+        'results': {}
+    }
 
 def classify_gender(name):
     """

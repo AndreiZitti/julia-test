@@ -339,7 +339,32 @@ class GenderClassificationApp {
         this.showStep(4);
         this.showMessage("File processed successfully!", "success");
       } else {
-        this.showMessage(result.error, "error");
+        // Show detailed error message for AI failures
+        let errorMessage = result.error || "Processing failed";
+        if (errorMessage.includes("AI Classification Failed")) {
+          // Make AI errors more prominent
+          this.showMessage(errorMessage, "error");
+
+          // Show suggestions for common AI issues
+          if (errorMessage.includes("Invalid API key")) {
+            this.showMessage(
+              "💡 Tip: Get a new API key at https://platform.openai.com/api-keys",
+              "info"
+            );
+          } else if (errorMessage.includes("credits")) {
+            this.showMessage(
+              "💡 Tip: Add credits at https://platform.openai.com/account/billing",
+              "info"
+            );
+          } else if (errorMessage.includes("models failed")) {
+            this.showMessage(
+              "💡 Tip: Try using the Rule-Based method instead, or contact OpenAI support",
+              "info"
+            );
+          }
+        } else {
+          this.showMessage(errorMessage, "error");
+        }
         processBtn.style.display = "block";
       }
     } catch (error) {

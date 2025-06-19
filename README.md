@@ -80,7 +80,7 @@ Choose between two classification approaches:
 
 ### 🤖 AI-Powered Classification (Recommended)
 
-- **Technology**: OpenAI GPT-3.5 Turbo
+- **Technology**: OpenAI GPT-4o Mini
 - **Accuracy**: Higher accuracy, especially for:
   - Uncommon or unique names
   - International/non-English names

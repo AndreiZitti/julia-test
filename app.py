@@ -114,37 +114,37 @@ def process_file():
         
         # Process names using AI or rule-based approach
         if use_ai and api_key:
-            try:
-                # Process in batches for efficiency
-                batch_size = 50
-                all_results = {}
+            # Process in batches for efficiency
+            batch_size = 50
+            all_results = {}
+            ai_success = True
+            ai_error_message = None
+            model_used = None
+            
+            for i in range(0, len(names_to_process), batch_size):
+                batch = names_to_process[i:i + batch_size]
+                ai_response = classify_gender_with_ai(batch, api_key)
                 
-                for i in range(0, len(names_to_process), batch_size):
-                    batch = names_to_process[i:i + batch_size]
-                    batch_results = classify_gender_with_ai(batch, api_key)
-                    all_results.update(batch_results)
-                
-                # Map results back to the dataframe
-                gender_results = []
-                for name in names_to_process:
-                    if name in all_results:
-                        gender_results.append(all_results[name])
-                    else:
-                        gender_results.append('?')
-                
-                classification_method = "AI (OpenAI GPT-3.5)"
-                
-            except Exception as ai_error:
-                # Fallback to rule-based if AI fails
-                print(f"AI classification failed: {ai_error}")
-                gender_results = []
-                for name in names_to_process:
-                    if pd.isna(name) or str(name).strip() == '':
-                        gender_code = '?'
-                    else:
-                        gender_code = classify_gender(str(name).strip())
-                    gender_results.append(gender_code)
-                classification_method = "Rule-based (AI failed, fallback used)"
+                if ai_response['success']:
+                    all_results.update(ai_response['results'])
+                    if not model_used:  # Store the model used from first successful batch
+                        model_used = ai_response['model_used']
+                else:
+                    # AI failed - return error to frontend
+                    return jsonify({
+                        'success': False,
+                        'error': f"AI Classification Failed: {ai_response['error']}"
+                    }), 400
+            
+            # Map AI results back to the dataframe
+            gender_results = []
+            for name in names_to_process:
+                if name in all_results:
+                    gender_results.append(all_results[name])
+                else:
+                    gender_results.append('?')
+            
+            classification_method = f"AI ({model_used})"
         else:
             # Use rule-based classification
             gender_results = []
